@@ -1,0 +1,97 @@
+# Ignore all animation and video files
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.flv
+*.wmv
+*.webm
+*.gif
+
+# Ignore all image files
+*.jpeg
+*.jpg
+*.png
+*.bmp
+*.tiff
+*.svg
+*.webp
+
+# Ignore all error and output log files
+*.err
+*.out
+*.log
+
+# Ignore pickle files
+*.pkl
+
+# Ignore temporary and backup files
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.old
+*.orig
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore Python compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Ignore virtual environment directories
+.env/
+.venv/
+venv/
+
+# Ignore build artifacts and caches
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Ignore IDE and editor configurations
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Ignore archive and compressed files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Ignore database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore specific configuration files
+*.env
+.env.local
+.env.*
+!.env.example
+
+# Ignore executables and binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.out
+
+# Ignore miscellaneous
+*.lock
+node_modules/
+*.snakemake
+*.ssh
