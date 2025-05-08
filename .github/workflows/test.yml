@@ -27,6 +27,14 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Run Pytest
+      - name: Run Pytest tensoring
         run: |
-          pytest
+          pytest tensoring/tests
+
+      - name: Run Pytest torch_numpy_process
+        run: |
+          pytest torch_numpy_process/tests
+
+      - name: Run Pytest unbalanced_ot_metric
+        run: |
+          pytest unbalanced_ot_metric/tests
