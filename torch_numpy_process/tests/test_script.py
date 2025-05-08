@@ -49,7 +49,7 @@ def test_torch_to_numpy_torch_torch():
         x = torch.rand(5, 5).type(torch.cuda.DoubleTensor)
         device = "cuda"
     except RuntimeError:
-        x = torch.rand(5, 5, device="cpu")
+        x = torch.rand(5, 5, device="cpu").type(torch.DoubleTensor)
         device = "cpu"
 
     mem_location = x.data_ptr()
