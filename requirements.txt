@@ -1,0 +1,16 @@
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=flipflops&subdirectory=flipflop
+geomloss==0.2.6
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=lambertw&subdirectory=lambertw
+numpy==1.24.3
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=plotting&subdirectory=plotting
+PuLP==2.7.0
+pytest==7.2.0
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=swsg_ot_algorithm&subdirectory=swsg_ot_algorithm
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=tensoring&subdirectory=tensoring
+torch==1.13.1+cu116
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=torch_numpy_process&subdirectory=torch_numpy_process
+torchaudio==0.13.1+cu116
+torchvision==0.14.1+cu116
+torchviz==0.0.2
+tqdm==4.64.1
+-e git+https://github.com/Jacob-Francis/PhD_code.git@79d3faefec62ca51a2c4b4cba3686257d7ac515b#egg=unbalanced_ot_metric&subdirectory=unbalanced_ot_metric
