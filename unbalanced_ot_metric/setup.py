@@ -10,7 +10,7 @@ setup(
         "flipflops>=0.1",       # Dependency on the 'flipflops' package
         "scipy>=1.10.1", 
         "geomloss==0.2.6",
-        "numpy==1.24.3",
+        "numpy>=1.24.3",
         "pykeops==2.1.2",
         "pytest==7.2.0"
     ],
