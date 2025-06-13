@@ -23,7 +23,7 @@ import matplotlib.patches as patches
 def generate_uot_class(case1, case2, epsilon=0.005, rho=2 ** (-4), aprox="tv"):
     # Initialisation
     ################## binary cass
-    global PATH_TO_DATA
+    PATH_TO_DATA = os.environ.get("PATH_TO_DATA")
 
     X, alpha, Y, beta, _, _ = load_test_fields_bias_scaling(case1, case2, path_to_data=PATH_TO_DATA)
 
@@ -71,6 +71,8 @@ def plotting_transport_vectors(
         case1, case2, epsilon=epsilon, rho=rho, aprox=aprox
     )
 
+    n1, n2, _ = X.shape
+
     V0 = field_testing.barycentre_map_of_points("target").cpu()
     V1 = field_testing.barycentre_map_of_points("source").cpu()
 
@@ -83,12 +85,12 @@ def plotting_transport_vectors(
 
     # First plot
     ax = axs[0]
-    ax.set(xlim=(0, 200))
-    v0 = (V0 - u0) * 200  # Adjust vector field
+    ax.set(xlim=(0, n1))
+    v0 = (V0 - u0) * n1  # Adjust vector field
     step = 17
     colors = torch.norm(v0[::step, :], dim=1).numpy()
     colors[np.isnan(colors)] = 0
-    X_flat = X.reshape(-1, 2) * 200
+    X_flat = X.reshape(-1, 2) * n1
     index = colors > 0
     quiv = ax.quiver(
         X_flat[::step, 0][index],
@@ -106,15 +108,15 @@ def plotting_transport_vectors(
     )  # Attach colorbar to the correct subplot
     ax.set_facecolor("#f9f6f1")  # Set background color for this subplot
     ax.set_title("Observation to Forecast")
-    ax.set(xlim=(0, 200), ylim=(0, 200))
+    ax.set(xlim=(0, n1), ylim=(0, n2))
 
     # Second plot
     ax = axs[1]
-    ax.set(xlim=(0, 200))
-    v0 = (V1 - u1) * 200  # Adjust vector field
+    ax.set(xlim=(0, n1))
+    v0 = (V1 - u1) * n1  # Adjust vector field
     colors = torch.norm(v0[::step, :], dim=1).numpy()
     colors[np.isnan(colors)] = 0
-    X_flat = X.reshape(-1, 2) * 200
+    X_flat = X.reshape(-1, 2) * n1
     index = colors > 0
     quiv = ax.quiver(
         X_flat[::step, 0][index],
@@ -133,12 +135,12 @@ def plotting_transport_vectors(
     ax.set_facecolor("#f9f6f1")  # Set background color for this subplot
     ax.set_title("Forecast to Observation")
 
-    ax.set(xlim=(0, 200), ylim=(0, 200))
+    ax.set(xlim=(0, n1), ylim=(0, n2))
 
     # plt.suptitle('C1C1 Transport Vectors', y=0.95)
     plt.tight_layout()
     plt.savefig(save_file)
-    plt.show()
+    # plt.show()
 
 
 def plotting_2D_histogram(
@@ -149,6 +151,8 @@ def plotting_2D_histogram(
         case1, case2, epsilon=epsilon, rho=rho, aprox=aprox
     )
 
+    n1, n2, _ = X.shape[0], X.shape[1]
+
     V0 = field_testing.barycentre_map_of_points("target").cpu()
     V1 = field_testing.barycentre_map_of_points("source").cpu()
 
@@ -158,7 +162,6 @@ def plotting_2D_histogram(
     # Assuming v0 and u0 are already defined tensors
     # Define the first vector: v0 = -V0
     v0 = -(V0 - u0)
-    n1 = 200
     mag1 = v0.norm(dim=1).numpy() * n1
     direction1 = torch.rad2deg(torch.arctan2(v0[:, 1], v0[:, 0])).numpy()
 
@@ -218,21 +221,13 @@ def plotting_2D_histogram(
                     xcenters2[i], ycenters2[j], "ko", markersize=0.5
                 )  # 'ko' means black circle
 
-    # Optional: Add annotations or other features
-    # Example: Adding an arrow in the second plot
-    arrow_x = np.rad2deg(np.arctan2([-5], [3]))  # direction (degrees)
-    arrow_y = 3 / 601 + 5 / 501  # magnitude
-    # axs[1].annotate('Target Bin', xy=(arrow_x, arrow_y), xytext=(-50, 0.03),
-    #                 arrowprops=dict(facecolor='red', shrink=0.05),
-    #                 fontsize=12, color='red')
-
     # Show the plots
     plt.suptitle(
         "Joint Histogram of transport vectors, case: {} to {}".format(case1, case2)
     )
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_marginals(
@@ -247,7 +242,8 @@ def plot_marginals(
     radius_centre=(120, 100),
 ):
     # Load data
-    X, alpha, Y, beta, _, _ = load_test_fields_bias_scaling(case_from, case_to)
+    PATH_TO_DATA = os.environ.get("PATH_TO_DATA")
+    X, alpha, Y, beta, _, _ = load_test_fields_bias_scaling(case_from, case_to,path_to_data=PATH_TO_DATA) 
 
     alpha = np.transpose(alpha)
     beta = np.transpose(beta)
@@ -330,7 +326,7 @@ def plot_marginals(
     plt.close()
 
 
-def timig_average():
+def timing_average():
     # This function is used to average the timing of the loop
     l = []
     for file in os.listdir(
@@ -401,8 +397,9 @@ def plot_bartable_plots(case_sets):
             else:
                 # Plot this new field
                 split_parts = re.split(r"(\d+)", case)
+                PATH_TO_DATA = os.environ.get('PATH_TO_DATA')
                 X, alpha, Y, beta, a, b = load_test_fields_bias_scaling(
-                    split_parts[0] + split_parts[1], split_parts[2] + split_parts[3]
+                    split_parts[0] + split_parts[1], split_parts[2] + split_parts[3], path_to_data=PATH_TO_DATA
                 )
                 ax = fig.add_subplot(3 * (case_count // cols), cols, case_ind)
                 # if len(np.unique(alpha)) == 1 and alpha[0, 0] > 0:
@@ -594,10 +591,8 @@ def plot_bartable_plots(case_sets):
                 else:
                     case_ind += 1
 
-            # plt.suptitle(r'Unbalanced Reach Cases, $\epsilon=$' + str(epsilon) + r', $\rho=1$')
+            os.makedirs("figs", exist_ok=True)
 
-            # plt.suptitle(r'Orientation Cases, $\epsilon$=' + str(epsilon) + ' $\rho$=' + '1', y=1.001)
-            # plt.tight_layout()
             plt.savefig(f"figs/{''.join(case_list)}.pdf")
 
 
@@ -886,3 +881,4 @@ def plotting_cost_decomposition_circles(
     plt.legend(handles=legend_elements, loc="upper center")
     plt.savefig(save_file)
     # plt.show()
+

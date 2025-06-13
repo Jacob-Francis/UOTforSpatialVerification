@@ -16,6 +16,7 @@
 *.tiff
 *.svg
 *.webp
+*.pdf
 
 # Ignore all error and output log files
 *.err

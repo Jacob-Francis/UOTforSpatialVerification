@@ -11,70 +11,135 @@ import pandas as pd
 # 'data_store'
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
-def load_test_fields_bias_scaling(fieldx: str, fieldy: str, L=200, dtype=torch.float64, path_to_data='',cases_scale=1873.5):
+def load_test_fields_bias_scaling(fieldx, fieldy, L=200, dtype=torch.float64, path_to_data='',cases_scale=1873.5):
+    """
 
-    # Load data
-    X_i = nc.Dataset(
-        path_to_data + str(fieldx) + ".nc"
-    )
+    Parameters
+    ----------
+    fieldx : _type_
+        _description_
+    fieldy : _type_
+        _description_
+    L : int, optional
+        _description_, by default 200
+    dtype : _type_, optional
+        _description_, by default torch.float64
+    path_to_data : str, optional
+        _description_, by default ''
+    cases_scale : float, optional
+        _description_, by default 1873.5
 
-    # For the 10 grid point increment cases we luse C1 rolled over 10 grid points.
-    if type(fieldy) == int:
-        # Repeat the x field then shift it through 'roll' later
-        Y_j = nc.Dataset(
-        path_to_data + str(fieldx) + ".nc"
-    )
-    else:
-        Y_j = nc.Dataset(
-            path_to_data + str(fieldy) + ".nc"
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    # Loading in geometric C/P/H/S/N cases
+    first_charaters = ['C', 'P', 'H', 'S', 'N', 'E']
+    if (fieldy[0] in first_charaters and fieldx[0] in first_charaters) or (fieldx=='C1' and type(fieldy)==int): 
+        # Load data
+        X_i = nc.Dataset(
+            path_to_data + str(fieldx) + ".nc"
         )
 
-    # Extract scaled fields
-    X_coordinates = torch.stack(
-        torch.meshgrid(
-            torch.tensor(X_i["x"][:].__array__(), dtype=dtype) / L,
-            torch.tensor(X_i["y"][:].__array__(), dtype=dtype) / L,
-            indexing="xy",
-        ),
-        axis=2,
-    )
-    X_precipitation = X_i["var2d"][:].__array__()
-    Y_coordinates = torch.stack(
-        torch.meshgrid(
-            torch.tensor(Y_j["x"][:].__array__(), dtype=dtype) / L,
-            torch.tensor(Y_j["y"][:].__array__(), dtype=dtype) / L,
-            indexing="xy",
-        ),
-        axis=2,
-    )
-    Y_precipitation = Y_j["var2d"][:].__array__()
-
-    mass_x, mass_y = np.sum(X_precipitation), np.sum(Y_precipitation)
-
-    X_precipitation /= cases_scale
-    Y_precipitation /= cases_scale
-
-    if type(fieldy) == int:
-        return (
-            X_coordinates,
-            X_precipitation,
-            Y_coordinates,
-            np.roll(Y_precipitation, fieldy, axis=1),
-            mass_x,
-            mass_y,
+        # For the 10 grid point increment cases we luse C1 rolled over 10 grid points.
+        if type(fieldy) == int:
+            # Repeat the x field then shift it through 'roll' later
+            Y_j = nc.Dataset(
+            path_to_data + str(fieldx) + ".nc"
         )
+        else:
+            Y_j = nc.Dataset(
+                path_to_data + str(fieldy) + ".nc"
+            )
+
+        # Extract scaled fields
+        X_coordinates = torch.stack(
+            torch.meshgrid(
+                torch.tensor(X_i["x"][:].__array__(), dtype=dtype) / L,
+                torch.tensor(X_i["y"][:].__array__(), dtype=dtype) / L,
+                indexing="xy",
+            ),
+            axis=2,
+        )
+        X_precipitation = X_i["var2d"][:].__array__()
+        Y_coordinates = torch.stack(
+            torch.meshgrid(
+                torch.tensor(Y_j["x"][:].__array__(), dtype=dtype) / L,
+                torch.tensor(Y_j["y"][:].__array__(), dtype=dtype) / L,
+                indexing="xy",
+            ),
+            axis=2,
+        )
+        Y_precipitation = Y_j["var2d"][:].__array__()
+
+        mass_x, mass_y = np.sum(X_precipitation), np.sum(Y_precipitation)
+
+        X_precipitation /= cases_scale
+        Y_precipitation /= cases_scale
+
+        if type(fieldy) == int:
+            return (
+                X_coordinates,
+                X_precipitation,
+                Y_coordinates,
+                np.roll(Y_precipitation, fieldy, axis=1),
+                mass_x,
+                mass_y,
+            )
+        else:
+            return (
+                X_coordinates,
+                X_precipitation,
+                Y_coordinates,
+                Y_precipitation,
+                mass_x,
+                mass_y,
+            )
     else:
+        # Loading in ICP real cases i.e. fakeXXX or spring2005
+
+        X_precipitation = np.loadtxt(path_to_data+f'{fieldx}')
+        Y_precipitation = np.loadtxt(path_to_data+f'{fieldy}')
+
+        X_precipitation = X_precipitation.T 
+        Y_precipitation = Y_precipitation.T
+
+        n1, n2 = X_precipitation.shape
+
+        x,y = np.meshgrid(*(np.linspace(1 / (2 * n1), 1 - 1 / (2 * n1), n1, endpoint=True), np.linspace(1 / (2 * n2), n2/n1 - 1 / (2 * n2), n2, endpoint=True)), indexing='ij')
+        X = np.stack((x,y), axis=-1) 
+
+        L = n1
+        print('n1, (n2)', n1, n2)
+
+        # Precipitation scaling - via Observation (X) sum
+        print("A:", np.sum(X_precipitation))
+        print("B:", np.sum(Y_precipitation))
+        print("A + B / 2:", (np.sum(X_precipitation) + np.sum(Y_precipitation)) / 2)
+        global A
+        A = (np.sum(X_precipitation) + np.sum(Y_precipitation)) / 2
+
+        if 'fake' in fieldx and 'fake' in fieldy:
+            cases_scale = np.sum(X_precipitation) # because fake000 doesn't change
+        else:
+            cases_scale = 200464  #  Observation average
+
+        mass_x, mass_y = np.sum(X_precipitation), np.sum(Y_precipitation)
+        print("U = L^2 / A: ", L**2 / A)
+        global U
+        U = L**2 / A
+        X_precipitation /= cases_scale
+        Y_precipitation /= cases_scale
+        
         return (
-            X_coordinates,
+            X,
             X_precipitation,
-            Y_coordinates,
+            X,
             Y_precipitation,
             mass_x,
             mass_y,
         )
-
-
-
 
 class DataCollector:
     def __init__(self, args_epsilon, arg_rho, arg_cuda, file_title, path_to_data):

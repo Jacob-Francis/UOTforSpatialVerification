@@ -1,8 +1,6 @@
-from plotting_utils import *
+from geometric_plotting_utils import *
 
-global PATH_TO_DATA
-
-PATH_TO_DATA = "/home/jacob/PhD_jobs/ICP_Cases/MescoVict_cases/"
+os.environ["PATH_TO_DATA"] = "/home/jacob/PhD_jobs/ICP_Cases/MescoVict_cases/"
 
 plotting_transport_vectors("C1", "C3", epsilon=0.005, rho=1, aprox="tv")
 plotting_transport_vectors("C6", "C8", epsilon=0.005, rho=2 ** (-4), aprox="tv")
