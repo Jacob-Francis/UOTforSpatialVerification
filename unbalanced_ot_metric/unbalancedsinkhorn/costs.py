@@ -86,9 +86,7 @@ class CostClass(Tensorisation):
 
             # Calculate cost matrices
             if self.tensorise[0] and self.tensorise[1]:
-                print(
-                    "Tensorising from given mesh, assuming ij index and assuming mesh is regular"
-                )  # need to think about
+
                 # This means we're okay to tensorise
                 self.cost_1 = (
                     0.5

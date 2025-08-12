@@ -145,6 +145,15 @@ class UnbalancedSinkhorn(CostClass):
         self.α_s = self._process_inputs(source_density, n1, n2)
         self.β_t = self._process_inputs(target_density, m1, m2)
 
+        if self.α_s.sum() == 0 or self.β_t.sum() == 0:
+            raise ValueError(
+                f"Source or target density is zero - only the zero plan is feasible.\n"
+                f"TV Sinkhorn divergence is defined as {self.α_s.sum() + self.β_t.sum()}.\n"
+                f"KL Sinkhorn divergence is defined as 0.\n"
+                f"Transport vectors are not defined."
+            )
+                            
+
         if not self.α_s.is_contiguous():
             self.α_s = self.α_s.contiguous()
         if not self.β_t.is_contiguous():
@@ -412,7 +421,7 @@ class UnbalancedSinkhorn(CostClass):
                     i += 1
                     i_super += 1
                 
-            print(f'Final error at esp={s**2}, err={err}, its={i}/{max_its}')
+            print(f'Epsilon Annealing, final esp={s**2}, err={err}, its={i}/{max_its}')
             self.epsilon = store_original_epsilon
 
         # ############ Tru Epsilon loop
