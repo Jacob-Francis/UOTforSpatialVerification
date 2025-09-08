@@ -1,8 +1,9 @@
 """
 Main code for Sinkhorn algorithm implementation, given any *divergence class.
 """
+
 import torch
-from . pykeops_formula import PyKeOpsFormulas
+from .pykeops_formula import PyKeOpsFormulas
 from .utils import pbcost_cdist, exponential_sequence
 from tensorisation import Tensorisation
 from .tvdivergence import TVDivergence
@@ -32,6 +33,7 @@ torch.set_printoptions(precision=15)
 # 5)fi←−εLSEMj=1[log(βj) + (gj−C(xi,yj))/ε]
 # 6)fi←−aproxεφ∗(−fi)
 # 7) return, fi, gj
+
 
 # pylint: disable=no-member
 class UnbalancedSinkhorn(CostClass):
@@ -97,7 +99,16 @@ class UnbalancedSinkhorn(CostClass):
         # pylint: enable=attribute-defined-outside-init
 
     def densities(
-        self, source_points, target_points, source_density=None, target_density=None, **kwargs
+        self,
+        source_points=None,
+        target_points=None,
+        source_density=None,
+        target_density=None,
+        observation_points=None,
+        forecast_points=None,
+        observation_density=None,
+        forecast_density=None,
+        **kwargs,
     ):
         """
         Load densities into the class as torch tensors for speed up.
@@ -110,37 +121,42 @@ class UnbalancedSinkhorn(CostClass):
 
         Parameters
         ----------
-        source_points : (N, 2), (n1, n2, 2), ((n1), (n2))
+        source_points (OBSERVATION) : (N, 2), (n1, n2, 2), ((n1), (n2))
             source 2D points, this is the mesh. Not weights.
-        target_points : (M, 2), (m1, m2, 2), ((m1), (m2))
+        target_points (FORECAST) : (M, 2), (m1, m2, 2), ((m1), (m2))
             target 2D points, this is the mesh. Not weights.
         source_density : (N) (n1, n2), optional
             weights associated to the 2D source points, by default None
         target_density : (N) (m1, m2), optional
             weights associated to the 2D target points, by default None
-        kwargs; 
+        kwargs;
             cost_type: str
                 'rigid', 'periodic'  ToDo: [ 'beta', 'beta_periodic']. Need to pass kwarg
             L: int
-                 for periodic case 
+                 for periodic case
         """
         global n1, n2, m1, m2
+
+        # Resolve aliases: prefer explicit source/target if both are given
+        if observation_points is not None and source_points is None:
+            source_points = observation_points
+        if forecast_points is not None and target_points is None:
+            target_points = forecast_points
+
+        if observation_density is not None and source_density is None:
+            source_density = observation_density
+        if forecast_density is not None and target_density is None:
+            target_density = forecast_density
+
         # Process arguments depending on input, determine whether to tensorise.
         # Note n2, m2 will be one if given no-regular points.
         n1, n2 = self._process_points(source_points)
         m1, m2 = self._process_points(target_points)
 
         self.process_initial_point_clouds(
-            source_points,
-            target_points,
-            self.cost_const,
-            n1,
-            n2,
-            m1,
-            m2,
-            **kwargs
+            source_points, target_points, self.cost_const, n1, n2, m1, m2, **kwargs
         )
-        
+
         # Process associated densities - could be a utils or in torch_numpy... class
         self.α_s = self._process_inputs(source_density, n1, n2)
         self.β_t = self._process_inputs(target_density, m1, m2)
@@ -152,7 +168,6 @@ class UnbalancedSinkhorn(CostClass):
                 f"KL Sinkhorn divergence is defined as 0.\n"
                 f"Transport vectors are not defined."
             )
-                            
 
         if not self.α_s.is_contiguous():
             self.α_s = self.α_s.contiguous()
@@ -189,16 +204,18 @@ class UnbalancedSinkhorn(CostClass):
                         dim,
                     ).view(-1, 1)
                 ) / 2
-    
+
         else:
             if dim == 0:  # g update
                 self.g += -self.epsilon * torch.logsumexp(
-                    (self.f + self.g.T - self.cost) / self.epsilon + torch.log(self.α_s),
+                    (self.f + self.g.T - self.cost) / self.epsilon
+                    + torch.log(self.α_s),
                     dim,
                 ).view(-1, 1)
             elif dim == 1:  # f update
                 self.f += -self.epsilon * torch.logsumexp(
-                    (self.f + self.g.T - self.cost) / self.epsilon + torch.log(self.β_t.T),
+                    (self.f + self.g.T - self.cost) / self.epsilon
+                    + torch.log(self.β_t.T),
                     dim,
                 ).view(-1, 1)
 
@@ -332,7 +349,7 @@ class UnbalancedSinkhorn(CostClass):
         else:
             self.left_div.sinkhorn_iterate(self.f)
             self.right_div.sinkhorn_iterate(self.g)
-                    # Run the parallel computations
+            # Run the parallel computations
             # with ThreadPoolExecutor() as executor:
             #     future_f = executor.submit(self.left_div.sinkhorn_iterate, self.f)
             #     future_g = executor.submit(self.right_div.sinkhorn_iterate, self.g)
@@ -366,7 +383,7 @@ class UnbalancedSinkhorn(CostClass):
         convergence_repeats=1,
         epsilon_annealing=False,
         epsilon_annealing_const=0.99,
-        convergence_or_fail=False
+        convergence_or_fail=False,
     ):
         """Note we overwrite f0, g0"""
 
@@ -375,18 +392,14 @@ class UnbalancedSinkhorn(CostClass):
             sinkhorn_steps = max(
                 [100, int(-1.1 / self.epsilon * torch.log(self.epsilon))]
             )
-        convergence_checks = self.convergence_intialisation(convergence_checks, sinkhorn_steps, convergence_data)
+        convergence_checks = self.convergence_intialisation(
+            convergence_checks, sinkhorn_steps, convergence_data
+        )
 
         # To Do: Refactor this so you can iterate the sinkhorn_aglorithm without re-intialising every time
         if reinitialise:
             self.sinkhorn_algorithm_initialisation(
-                left_divergence,
-                right_divergence,
-                aprox,
-                f0,
-                f0_const,
-                g0,
-                g0_const
+                left_divergence, right_divergence, aprox, f0, f0_const, g0, g0_const
             )
 
         i_super = 0
@@ -394,23 +407,31 @@ class UnbalancedSinkhorn(CostClass):
         # parameters will nee be parsing, assuming a unit box atm
         if epsilon_annealing:
             if not all(self.tensorise) and self.pykeops:
-                self.f = self.pykeops_formulas.starting_potentials(self.Y_t, self.X_s, self.β_t)
-                self.g = self.pykeops_formulas.starting_potentials(self.X_s, self.Y_t, self.α_s)
+                self.f = self.pykeops_formulas.starting_potentials(
+                    self.Y_t, self.X_s, self.β_t
+                )
+                self.g = self.pykeops_formulas.starting_potentials(
+                    self.X_s, self.Y_t, self.α_s
+                )
 
-            scale_list = exponential_sequence(torch.sqrt(torch.Tensor([2])), epsilon_annealing_const, torch.sqrt(self.epsilon).cpu())
+            scale_list = exponential_sequence(
+                torch.sqrt(torch.Tensor([2])),
+                epsilon_annealing_const,
+                torch.sqrt(self.epsilon).cpu(),
+            )
             store_original_epsilon = self.epsilon.clone()
             for s in scale_list:
                 err = torch.inf
                 i = 0
                 self.epsilon = self._torch_numpy_process(s**2)
                 max_its = int(-1 / self.epsilon * torch.log(self.epsilon))
-                
+
                 while (i < max_its) and (err > tol) and (max_its >= 1):
                     temp_f, temp_g = self.f.clone(), self.g.clone()
 
                     # Update loop
                     self._aprox_sinkhorn_loop()
-                    
+
                     # Convergence check in potentials (psuedo?) residual
                     # pylint: disable-next=not-callable
                     f_update = torch.linalg.norm(temp_f - self.f, ord=float("inf"))
@@ -420,8 +441,8 @@ class UnbalancedSinkhorn(CostClass):
 
                     i += 1
                     i_super += 1
-                
-            print(f'Epsilon Annealing, final esp={s**2}, err={err}, its={i}/{max_its}')
+
+            print(f"Epsilon Annealing, final esp={s**2}, err={err}, its={i}/{max_its}")
             self.epsilon = store_original_epsilon
 
         # ############ Tru Epsilon loop
@@ -461,10 +482,13 @@ class UnbalancedSinkhorn(CostClass):
                     if verbose:
                         print("!!!!! oscillating sinkhorn updates : !!!!!!!!")
                         print(f"updates size = {err}", i)
-                    
+
                     if convergence_or_fail:
                         # ToDo correct these warnings
-                        warnings.warn(f"Sinkhorn oscillating and failed to converge in {sinkhorn_steps*(count-1)} iteration| err={err}", ConvergenceWarning)
+                        warnings.warn(
+                            f"Sinkhorn oscillating and failed to converge in {sinkhorn_steps*(count-1)} iteration| err={err}",
+                            ConvergenceWarning,
+                        )
                         raise RuntimeWarning
                     break
 
@@ -496,7 +520,10 @@ class UnbalancedSinkhorn(CostClass):
                 if count == convergence_repeats + 1:
                     if convergence_or_fail:
                         # ToDo correct these warnings
-                        warnings.warn(f"Sinkhorn did not converge in {sinkhorn_steps*(count-1)} iteration| err={err}", ConvergenceWarning)
+                        warnings.warn(
+                            f"Sinkhorn did not converge in {sinkhorn_steps*(count-1)} iteration| err={err}",
+                            ConvergenceWarning,
+                        )
                         raise RuntimeWarning
                     break
 
@@ -510,14 +537,7 @@ class UnbalancedSinkhorn(CostClass):
 
     # ------------------ Running function for the algorithm ----------------------
     def sinkhorn_algorithm_initialisation(
-        self,
-        left_divergence,
-        right_divergence,
-        aprox,
-        f0,
-        f0_const,
-        g0,
-        g0_const
+        self, left_divergence, right_divergence, aprox, f0, f0_const, g0, g0_const
     ):
         """
 
@@ -606,7 +626,9 @@ class UnbalancedSinkhorn(CostClass):
 
         # pylint enable=attribute-defined-outside-init
 
-    def convergence_intialisation(self, convergence_checks, sinkhorn_steps, convergence_data):
+    def convergence_intialisation(
+        self, convergence_checks, sinkhorn_steps, convergence_data
+    ):
         if convergence_checks is None:
             convergence_checks = sinkhorn_steps
 
