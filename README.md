@@ -73,12 +73,3 @@ The data for the ICP cases is available from the [ICP project page](https://proj
 -- CMH: https://projects.ral.ucar.edu/icp/Data/CMH/CMH_06_case1.tar.gz
 -- CO2: https://projects.ral.ucar.edu/icp/Data/COSMO2.00/CO2_00_case1.tar.gz
 
-## running Test Cases
-
-## Plotting figures
-
-
-## To-Do
-
-- Code to generate 10-increment C1 tests will be added here.
-- A notebook for running examples for each dataset, along with corresponding diagrams, will also be added here at a later date.
