@@ -31,16 +31,22 @@ class TorchNumpyProcessing:
         set_fail : bool, optional
             If True then we force use_cuda=False meaning that torch.tensors will stay on cpu, by default False. If False then we check if cuda is available and if so use cuda.
         """
+        if cuda_device == 'cpu':
+            set_fail = True
         self.set_fail = set_fail
-        self._initialise(set_fail)
-    
-        if cuda_device:
-            self.device = cuda_device
-            torch.cuda.set_device(self.device)
+        self._initialise(set_fail, cuda_device)
+
+        if cuda_device is not None:
+            if 'cuda' in cuda_device:
+                self.device = cuda_device
+                if torch.cuda.is_available():
+                    torch.cuda.set_device(self.device)
+                else:
+                    self.device = None
         else:
             self.device = None
 
-    def _initialise(self, set_fail):
+    def _initialise(self, set_fail, cuda_device):
         """Initialise the class, meaning we look if cuda is available as this will define what device to put torch.tensors on.
 
         Parameters
@@ -48,15 +54,39 @@ class TorchNumpyProcessing:
         set_fail :
             see above
         """
+        # Determine whether CUDA can be used
         if set_fail:
             use_cuda = False
         else:
             use_cuda = torch.cuda.is_available()
 
-        # Assign attribute to use in child classes
-        # pylint: disable-next=no-member
-        self.dtype = torch.cuda.DoubleTensor if use_cuda else torch.DoubleTensor
 
+        if use_cuda:
+            # Handle optional cuda_device argument
+            if cuda_device is not None:
+                # cuda_device can be an int (e.g., 0) or string (e.g., 'cuda:0')
+                if isinstance(cuda_device, int):
+                    device_str = f"cuda:{cuda_device}"
+                elif isinstance(cuda_device, str) and 'cuda' in cuda_device:
+                    device_str = cuda_device
+                else:
+                    device_str = "cuda:0"
+            else:
+                device_str = "cuda:0"
+
+            # Verify that device exists
+            if torch.cuda.device_count() > 0:
+                self.device = torch.device(device_str)
+                torch.cuda.set_device(self.device)
+            else:
+                self.device = torch.device("cpu")
+                use_cuda = False
+        else:
+            self.device = torch.device("cpu")
+
+      
+        self.dtype = torch.float64  # Double precision
+        
     def _reinitialise(self, set_fail=False):
         """Force reassessment of whether cuda is available or not, without reinitialising the whole class.
 
