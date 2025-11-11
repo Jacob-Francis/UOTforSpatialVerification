@@ -25,7 +25,6 @@ def test_torch_to_numpy_np_torch(device, data_form):
     if data_form == "np":
         x = np.random.rand(5, 5)
         x = tnp._torch_numpy_process(x)
-
         # This should work in place - if not then I need to fix this!
         assert type(x) == torch.Tensor
 
@@ -122,24 +121,6 @@ def test_detaching(device):
 # pylint: enable=protected-access
 
 if __name__ == "__main__":
-    import torch
+    import sys
 
-    x = torch.rand(5, 5, device="cuda")
-    print(x.data_ptr())
-    print(x.type(), x)
-    print(x.type(torch.cuda.DoubleTensor).data_ptr())
-    print(x.data_ptr())
-
-    def f(x):
-        return x
-
-    x = x
-    print(x.data_ptr())
-    print(f(x).data_ptr())
-    x = f(x)
-    print(x.data_ptr())
-
-    print(isinstance(x, torch.Tensor))
-
-    y = np.random.rand(5, 5, 1)
-    print(y.squeeze())
+    pytest.main(sys.argv)

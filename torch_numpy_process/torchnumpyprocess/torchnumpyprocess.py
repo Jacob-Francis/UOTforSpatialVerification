@@ -36,16 +36,6 @@ class TorchNumpyProcessing:
         self.set_fail = set_fail
         self._initialise(set_fail, cuda_device)
 
-        if cuda_device is not None:
-            if 'cuda' in cuda_device:
-                self.device = cuda_device
-                if torch.cuda.is_available():
-                    torch.cuda.set_device(self.device)
-                else:
-                    self.device = None
-        else:
-            self.device = None
-
     def _initialise(self, set_fail, cuda_device):
         """Initialise the class, meaning we look if cuda is available as this will define what device to put torch.tensors on.
 
@@ -59,7 +49,6 @@ class TorchNumpyProcessing:
             use_cuda = False
         else:
             use_cuda = torch.cuda.is_available()
-
 
         if use_cuda:
             # Handle optional cuda_device argument
@@ -108,15 +97,13 @@ class TorchNumpyProcessing:
             array to be processed
         """
         if isinstance(x, torch.Tensor):
-
-            if x.type() == self.dtype:
-                # We perform this check to avoid moving tensors around in memory.
-                return x
-            else:
-                return x.type(self.dtype, non_blocking=non_blocking)
+            # Ensure correct dtype and device
+            if x.dtype != self.dtype or x.device != self.device:
+                return x.to(device=self.device, dtype=self.dtype, non_blocking=non_blocking)
+            return x
         else:
-            # pylint: disable-next=no-member
-            return torch.tensor(x).type(self.dtype, non_blocking=non_blocking)
+            # Convert numpy array or other to torch tensor on correct device
+            return torch.tensor(x, device=self.device, dtype=self.dtype)
 
     def _clone_process(self, x, non_blocking=False):
         """Process and clone argument, to a torch.tensor on the correct device.
