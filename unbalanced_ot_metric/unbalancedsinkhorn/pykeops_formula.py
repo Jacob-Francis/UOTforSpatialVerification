@@ -6,9 +6,9 @@ from scipy.spatial.distance import cdist
 
 
 class PyKeOpsFormulas:
-    def __init__(self, cost_string="SqDist(X, Y)"):
+    def __init__(self, cost_string="SqDist(X, Y)", space_dim=2):
         self.cost_string = cost_string
-
+        self.space_dim = space_dim
         # Periodic = '(Min(Concat(SqDist(Elem(X, 0) - IntCst({}), Elem(Y, 0)), Concat(SqDist(Elem(X, 0) + IntCst({}), Elem(Y, 0)), SqDist(Elem(X, 0), Elem(Y, 0)))) + SqDist(Elem(X, 1), Elem(Y, 1))) / IntCst(2))'.format(int(L), int(L))  # noqa E501
         # beta plane
 
@@ -19,8 +19,8 @@ class PyKeOpsFormulas:
             [
                 "G = Vj(1)",  # Uni: 1 scalar per line
                 "F = Vi(1)",  # Geo: 1 scalar per line
-                "X = Vi(2)",  # Geo: 2-dim
-                "Y = Vj(2)",  # Uni: 1 scalar per line
+                f"X = Vi({space_dim})",  # Geo: 2-dim
+                f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
                 "E = Pm(1)",  # parameter: 1 scalar per line
                 "C = Pm(1)",
                 "M = Vj(1)",
@@ -35,8 +35,8 @@ class PyKeOpsFormulas:
             "f = Vj(1)",  # Geo: 1 scalar per line
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",
@@ -48,8 +48,8 @@ class PyKeOpsFormulas:
             "f = Vj(1)",  # output
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",
@@ -60,8 +60,8 @@ class PyKeOpsFormulas:
             "f = Vj(1)",  # Geo: 1 scalar per line
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",
@@ -75,8 +75,8 @@ class PyKeOpsFormulas:
             "f = Vj(1)",  # Geo: 1 scalar per line
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",
@@ -87,8 +87,8 @@ class PyKeOpsFormulas:
             "f = Vi(1)",  # Geo: 1 scalar per line
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",
@@ -101,8 +101,8 @@ class PyKeOpsFormulas:
             f"(Exp((F - IntInv(2)*C*{self.cost_string})/E)*S*P )",
             "f = Vj(1)",  # Geo: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",
             "P = Vi(1)",
@@ -113,8 +113,8 @@ class PyKeOpsFormulas:
             f"(Exp((F - IntInv(2)*C*{self.cost_string})/E)*S)",
             "f = Vj(1)",  # Geo: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",
             "C = Pm(1)",
@@ -122,8 +122,8 @@ class PyKeOpsFormulas:
         self._starting_potentials = generic_sum(
             f"((IntInv(2)*C*{self.cost_string}) * S)",
             "f = Vj(1)",
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            f"X = Vi({space_dim})",  # Geo: 2-dim
+            f"Y = Vj({space_dim})",  # Uni: 1 scalar per line
             "S = Vi(1)",  # Geo
             "C = Pm(1)",
         )
@@ -162,8 +162,8 @@ class PyKeOpsFormulas:
             "f = Vi(" + str(int(d)) + ")",  # Geo: 1 scalar per line
             "G = Vj(1)",  # Uni: 1 scalar per line
             "F = Vi(1)",  # Geo: 1 scalar per line
-            "X = Vi(2)",  # Geo: 2-dim
-            "Y = Vj(2)",  # Uni: 1 scalar per line
+            "X = Vi(" + str(self.space_dim) + ")",  # Geo: 2-dim
+            "Y = Vj(" + str(self.space_dim) + ")",  # Uni: 1 scalar per line
             "E = Pm(1)",  # parameter: 1 scalar per line
             "S = Vi(1)",  # Geo
             "M = Vj(1)",

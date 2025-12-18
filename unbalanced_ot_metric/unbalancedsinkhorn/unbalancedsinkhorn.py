@@ -309,6 +309,7 @@ class UnbalancedSinkhorn(CostClass):
                 self.g *= 0.5
         else:
             if dim == 1:  # f update
+
                 torch.log(
                     self.tensorise_f(
                         torch.exp(-self.cost_1 / self.epsilon),
@@ -642,6 +643,7 @@ class UnbalancedSinkhorn(CostClass):
         """
         if points is None:
             weights = const * torch.ones((n, m)).type(self.dtype) / (n * m)
+            weights = weights.to(self.device)
         else:
             weights = self._clone_process(points, non_blocking=True)
             weights = weights.view(n, m)

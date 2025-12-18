@@ -239,7 +239,7 @@ class UnbalancedOT(UnbalancedSinkhorn):
                 *[self._torch_numpy_process(t) for t in XY]
             ).type_as(self.f)
         else:
-            return XY.view(-1, 2)
+            return XY.view(-1, self.pykeops_formulas.space_dim)
 
     def _dot(self, a, b):
         """Distribute depending on if tensorised of not dot product
@@ -444,7 +444,6 @@ class UnbalancedOT(UnbalancedSinkhorn):
             _description_
         """
         D = p.shape[-1]
-
         if sum_over == "target":
             return self.pykeops_formulas.barycentres(
                 self.g.view(-1, 1),
@@ -492,7 +491,7 @@ class UnbalancedOT(UnbalancedSinkhorn):
                     self._pi(tensorised=True),
                     p[:, :, None, None],
                     dims=([0, 1], [0, 1]),
-                ).squeeze() / self.marginals(1)
+                ).squeeze() / self.marginals(1) # ToDo: Check this broadcasting for tensorisation
             else:
                 return (self._pi(tensorised=False).T @ p).view(-1, d) / self.marginals(
                     1

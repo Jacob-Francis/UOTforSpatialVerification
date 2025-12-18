@@ -10,7 +10,7 @@ class DebiasedUOT(UnbalancedOT):
     Class to calculate debiased costs. Assign
     """
 
-    def sinkhorn_divergence(self, tol=1e-12, force_type=None, return_type='primal'):
+    def sinkhorn_divergence(self, tol=1e-12, force_type=None, return_type='primal', convergence_repeats=5):
 
         # ToDo This doesn't need repeating everytime if it already exists? Especially for time stepping
         # ToDo check theory for symmetric updates in non-balanced setting
@@ -32,20 +32,20 @@ class DebiasedUOT(UnbalancedOT):
             verbose=False,
             left_divergence=self.left_div.print_type(),
             right_divergence=self.left_div.print_type(),
-            convergence_repeats=3
+            convergence_repeats=convergence_repeats
         )
         if (f_update > tol) or (g_update > tol):
-            print('Symmetric problem 1 converged:', f_update < tol, g_update < tol)
+            print('Symmetric problem 1 not converged, psuedo residal: {:.4g}'.format(max(f_update, g_update)), 'You may wish to increase convergence_repeats')
 
         f_update, g_update, i_sup = self.debias_g.sinkhorn_algorithm(
             tol=tol,
             verbose=False,
             left_divergence=self.right_div.print_type(),
             right_divergence=self.right_div.print_type(),
-            convergence_repeats=3
+            convergence_repeats=convergence_repeats
         )
         if (f_update > tol) or (g_update > tol):
-            print('Symmetric problem 2 converged:', f_update < tol, g_update < tol)
+            print('Symmetric problem 1 not converged, psuedo residal: {:.4g}'.format(max(f_update, g_update)), 'You may wish to increase convergence_repeats')
 
 
         if return_type=='primal':

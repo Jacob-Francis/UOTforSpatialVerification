@@ -106,8 +106,14 @@ class CostClass(Tensorisation):
 
         # if pykeops is available we need the class ready, weather we use it for updates or not
         if self.pykeops:
+            if isinstance(source_points, tuple) and isinstance(target_points, tuple):
+                space_dim =2
+            else:
+                space_dim = source_points.shape[-1]
+                assert space_dim == target_points.shape[-1], "Source and target point clouds must have the same dimension"
+
             if  self.cost_kwargs['cost_type']== 'rigid':
-                self.pykeops_formulas = PyKeOpsFormulas(cost_string="SqDist(X, Y)")
+                self.pykeops_formulas = PyKeOpsFormulas(cost_string="SqDist(X, Y)", space_dim=space_dim)
             elif  self.cost_kwargs['cost_type'] == 'periodic':
                 # ToDo : integers part here - use Fractionals it can be made for rationals, not reals.
                 self.pykeops_formulas = PyKeOpsFormulas(cost_string=f"(Min(Concat(SqDist(Elem(X, 0) - IntCst({int(kwargs['L'])}), Elem(Y, 0)), Concat(SqDist(Elem(X, 0) + IntCst({int(kwargs['L'])}), Elem(Y, 0)), SqDist(Elem(X, 0), Elem(Y, 0)))) + SqDist(Elem(X, 1), Elem(Y, 1))))")

@@ -190,6 +190,10 @@ class Tensorisation(TorchNumpyProcessing):
         elif len(size) == 3 and size[2] == 2:  # (n1, n2, 2)
             self.tensorise[ind] = True
             return size[0], size[1]
+        elif size[1] == 3:
+            print('3D works only for pykeops right now - so no tensorisation implemented yet')
+            return size[0], 1 # shape for the density
+
         else:
             raise ValueError(
                 "Expected points input (N,2), (n1, n2, 2), tuple((n1), (n2))"
