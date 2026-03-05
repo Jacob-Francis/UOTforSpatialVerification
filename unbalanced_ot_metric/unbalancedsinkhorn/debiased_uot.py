@@ -15,10 +15,10 @@ class DebiasedUOT(UnbalancedOT):
         # ToDo This doesn't need repeating everytime if it already exists? Especially for time stepping
         # ToDo check theory for symmetric updates in non-balanced setting
         self.debias_f = UnbalancedOT(
-            set_fail=self.set_fail, pykeops=self.pykeops, debias=False,  cuda_device=self.device
+            set_fail=self.set_fail, pykeops=self.pykeops, debias=False,  cuda_device=str(self.device)
         )
         self.debias_g = UnbalancedOT(
-            set_fail=self.set_fail, pykeops=self.pykeops, debias=False, cuda_device=self.device
+            set_fail=self.set_fail, pykeops=self.pykeops, debias=False, cuda_device=str(self.device)
         )
 
         self.debias_f.parameters(self.epsilon, self.rho, self.cost_const)
