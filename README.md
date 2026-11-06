@@ -42,7 +42,7 @@ bash install_all.bash
 Alternatively manually install each through
 ```bash
 python3 -m pip install -e torch_numpy_process/ 
-python3 -m pip install -e flipflop/ 
+python3 -m pip install -e flipflops/ 
 python3 -m pip install -e tensoring/  
 python3 -m pip install -e unbalanced_ot_metric/ 
 ```
