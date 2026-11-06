@@ -1,1 +1,1 @@
-python3 -m pip install -e torch_numpy_process/ -e flipflop/ -e tensoring/  -e unbalanced_ot_metric/ 
+python3 -m pip install -e torch_numpy_process/ -e flipflops/ -e tensoring/  -e unbalanced_ot_metric/ 
