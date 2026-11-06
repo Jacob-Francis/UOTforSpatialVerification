@@ -1,6 +1,24 @@
 """
 Child class of `UnbalancedSinkhorn` which calculates all costs, dual and other for our metric. This
 includes barycenter calculations.
+
+Everything here is computed AFTER `sinkhorn_algorithm` has found the potentials f, g.
+The plan is
+
+    pi_ij = alpha_i beta_j exp((f_i + g_j - c_ij) / eps)
+
+and most methods have three versions, picked by `force_type`:
+
+    None        : tensorised if both inputs are regular grids, else KeOps if
+                  pykeops=True, else dense (the same priority as the Sinkhorn loop)
+    "tensorise" : force the regular-grid version
+    "pykeops"   : force the KeOps version (needs pykeops=True)
+    anything else (e.g. "None") : the dense version (needs the full cost matrix)
+
+NOTE (memory, stage 5): the tensorised versions here build the FULL 4D plan
+pi[k, p, r, s] of size n1*n2*m1*m2, which undoes the point of tensorising
+(about 0.66 TiB for a 600 x 500 grid). Measured: a 90 x 90 marginal took 1.4 s
+this way and 0.4 ms with `tensorise_f`. Passing force_type="pykeops" avoids it.
 """
 import torch
 from .utils import _kl
@@ -8,6 +26,7 @@ from .unbalancedsinkhorn import UnbalancedSinkhorn
 from pykeops.torch import LazyTensor
 
 # For any print statements
+# (Same global print setting as in unbalancedsinkhorn.py.)
 torch.set_printoptions(precision=15)
 
 # pylint: disable=no-member
@@ -28,7 +47,28 @@ class UnbalancedOT(UnbalancedSinkhorn):
         Calculate the marginals of our plan
         dim = 0 : marginal_i/source marginal/pi_0/geoverse
         dim = 1 : marginal_j/target marginal/pi_1/universe
+
+        pi_0[i] = sum_j pi_ij (mass leaving each source point),
+        pi_1[j] = sum_i pi_ij (mass arriving at each target point).
+        In unbalanced OT these differ from alpha and beta: mass can be created
+        or destroyed.
+
+        Parameters
+        ----------
+        dim : {0, 1}
+            0 for the source marginal, 1 for the target marginal.
+        force_type : str, optional
+            See the module docstring.
+
+        Returns
+        -------
+        torch.Tensor
+            Same shape as α_s (dim=0) or β_t (dim=1). (The tensorised and dense
+            versions return (n1, n2) and (N,); the KeOps version reshapes to the
+            potential's shape.)
         """
+        # NOTE: force_type="pykeops" without pykeops=True raises AttributeError
+        # (no self.pykeops_formulas), checked.
         if dim == 0:
             if (
                 all(self.tensorise) and force_type is None
@@ -89,6 +129,15 @@ class UnbalancedOT(UnbalancedSinkhorn):
         -D^*(-f|alpha) + -D^*(-g|beta) + eps . <pi -1, alpha x beta>
 
         ToDo: Check the above corresponds corrceetly
+
+        (As coded, the terms are
+            term 1:  -<alpha, D*(-f)>
+            term 2:  -<beta,  D*(-g)>
+            term 3:  -eps * sum_ij (pi_ij - alpha_i beta_j)
+        with D* from the divergence's dual_cost. Note the minus sign on term 3:
+        it is -eps <pi/(alpha x beta) - 1, alpha x beta>.)
+
+        At the optimum, sum(primal_cost()) == sum(dual_cost()); see `duality_gap`.
 
         force_type: str
             One of ['tensorise', 'pykeops', 'None']. Will perform this type of reduction. If None,
@@ -152,9 +201,18 @@ class UnbalancedOT(UnbalancedSinkhorn):
         (float, float, float)
             dual cost terms
 
+            (Actually FOUR terms, as listed above: <c, pi>, eps * KL,
+            rho * D(pi_0 | alpha), rho * D(pi_1 | beta).)
+
         """
+        # NOTE (efficiency, stage 5): the plan pi is rebuilt for each term that
+        # needs it (twice here, plus once in each marginals call): four times per
+        # primal_cost call on the tensorised and dense paths.
 
         if (all(self.tensorise) and force_type is None) or force_type == "tensorise":
+            # BUG(stage 4): log(exp(cost_1) * exp(cost_2)) is just cost_1 + cost_2,
+            # but exp overflows once the cost passes about 709, giving inf
+            # (checked: inf instead of 0.666 on a 60 x 60 domain).
             term1 = torch.sum(
                 torch.log(
                     torch.exp(self.cost_1)[:, None, :, None]
@@ -205,6 +263,14 @@ class UnbalancedOT(UnbalancedSinkhorn):
     def duality_gap(self, force_type=None):
         """Calculate the duality gap, which does give a notion of convergence in the unbalanced setting!
 
+        Should approach 0 as Sinkhorn converges. Unlike `marginals_error`, it is a
+        real convergence measure for unbalanced OT.
+
+        Parameters
+        ----------
+        force_type : str, optional
+            See the module docstring.
+
         Returns
         -------
         float
@@ -222,6 +288,10 @@ class UnbalancedOT(UnbalancedSinkhorn):
     def _process_tuple_points_for_pykeops(self, XY):
         """
         Process point sin atuple so that we may still use keops in this case. This is a bit laboured really.
+
+        KeOps needs a flat list of points. A tuple (x-axis, y-axis) becomes all
+        (x, y) pairs via cartesian_prod, in the same (row-major, "ij") order as the
+        (n1, n2) densities. Arrays are flattened to (N, space_dim).
 
         Parameters
         ----------
@@ -244,18 +314,22 @@ class UnbalancedOT(UnbalancedSinkhorn):
     def _dot(self, a, b):
         """Distribute depending on if tensorised of not dot product
 
+        sum of a * b over all entries: tensordot for 2D grid arrays, dot for 1D.
+
         Parameters
         ----------
         a : array
-            _description_
+            (n1, n2) on grids, (N,) otherwise.
         b : array
-            _description_
+            Same shape as a.
 
         Returns
         -------
-        _type_
-            _description_
+        torch.Tensor
+            Scalar.
         """
+        # NOTE: callers pass .squeeze()d tensors, so a single point (N = 1)
+        # becomes 0-d and a.dot(b) fails.
         if all(self.tensorise):
             return torch.tensordot(a, b)
         else:
@@ -265,15 +339,25 @@ class UnbalancedOT(UnbalancedSinkhorn):
         """
         Form pi calculation, either tensorised with two cost matrices or brute force with full cost matrix.
 
+        pi_ij = alpha_i beta_j exp((f_i + g_j - c_ij) / eps)
+
         Parameters
         ----------
-        tensorised : _type_
-            _description_
+        tensorised : bool
+            True: build the 4D plan pi[k, p, r, s], shape (n1, n2, m1, m2), from
+            cost_1 and cost_2 (see the memory NOTE in the module docstring).
+            False: the (N, M) plan from the full cost matrix.
 
         Returns
         -------
-        _type_
-            _description_
+        torch.Tensor
+            The plan.
+
+        Raises
+        ------
+        AttributeError
+            With tensorised=False when there is no full cost matrix (KeOps or
+            grid inputs).
         """
         if tensorised:
             return (
@@ -304,6 +388,22 @@ class UnbalancedOT(UnbalancedSinkhorn):
         Calculate the barycentre of the input points and weights, aligning with the derivative of points
         to give an approximate mapping based on the probabilistic plan.
 
+        Returns transport (displacement) vectors from the plan:
+
+        - which="source": one vector per TARGET point,
+              y_j - (pi-weighted average of the source points sent to y_j)
+          i.e. the average direction mass travelled to arrive at y_j.
+        - which="target": one vector per SOURCE point,
+              x_i - (pi-weighted average of the target points x_i is sent to)
+          i.e. it points BACK from the destination to x_i.
+
+        Checked with a known shift (target = source + (0.3, 0)): "source" gave
+        mean (0.3, 0) and "target" gave (-0.3, 0), on both the dense and KeOps
+        paths.
+
+        With a periodic cost, the x part of the vector is corrected for mass that
+        crossed the periodic boundary (KeOps only; see the BUG below).
+
         Parameters
         ----------
         which : str, optional
@@ -313,7 +413,14 @@ class UnbalancedOT(UnbalancedSinkhorn):
         -------
         array
             Barycentre array
+            (shape (M, 2) for "source", (N, 2) for "target")
         """
+        # BUG(stage 4), checked: without pykeops this crashes for
+        #   - periodic cost: `periodic_cost_operations` is only defined inside the
+        #     `if self.pykeops` branch -> UnboundLocalError
+        #   - tuple and (n1, n2, 2) grid inputs: flat (N, 2) points reach
+        #     `_barycentres_torch`, whose grid branch expects (n1, n2) arrays ->
+        #     RuntimeError (contracted dimensions need to match)
 
         # Determine barycentre function and handle periodic cost generation
         if self.pykeops:
@@ -325,6 +432,14 @@ class UnbalancedOT(UnbalancedSinkhorn):
                     # ToDo move intto pykeops formulas
 
                 def periodic_cost_operations(X_s, Y_t, L):
+                    """
+                    Build the plan pi as a symbolic KeOps LazyTensor (N, M) with the
+                    periodic cost, and set self.pbcost_ind (which shift was used).
+                    Nothing is computed until a .sum() is taken.
+
+                    NOTE: this repeats the work of `_generate_periodic_ind`, which is
+                    called just before.
+                    """
                     X_s_2, Y_t_2 = LazyTensor(X_s[:, None, :].contiguous()), LazyTensor(Y_t[None, :, :].contiguous())
                     X_s_lt, Y_t_lt = LazyTensor(X_s[:, 0][:, None, None].contiguous()), LazyTensor(Y_t[:, 0][None, :, None].contiguous())
 
@@ -374,10 +489,17 @@ class UnbalancedOT(UnbalancedSinkhorn):
             
             # ToDo move intto pykeops formulas, make sure the source and target formulations are correct
 
+            # Periodic correction: L * (pbcost_ind - 1) is the x-shift (-L, 0 or +L)
+            # used for each pair. Its pi-weighted average, divided by the marginal,
+            # is added to the x part of the vector, so mass that wrapped round the
+            # boundary gets a short vector instead of one across the whole domain.
             if which == "source":
                 temp = (pi * (L * (self.pbcost_ind - 1))).sum(dim=0) / self.marginals(1)
                 return Y_t - bary_function(X_s, which) + torch.stack((temp.view(-1,), torch.zeros_like(Y_t[:, 1])), dim=1)
             else:  # which == "target"
+                # NOTE (efficiency): the next four lines compute full KeOps
+                # reductions and throw the results away (leftover debugging). The
+                # "target" call took 11.4 ms against 5.9 ms for "source" (checked).
                 (pi * (L * (self.pbcost_ind - 1))).sum(dim=1).contiguous()
                 self.marginals(0)
                 (pi).sum(dim=1)
@@ -392,7 +514,10 @@ class UnbalancedOT(UnbalancedSinkhorn):
                 return self.X_s - bary_function(self.Y_t, which)
 
         elif cost_type == 'beta_plane':
-            β_scaled = self.cost_kwargs['beta'] * self.Y_t[:, 1].view(1, -1) / self.f_constant + 1
+            # BUG(stage 4): unfinished. self.f_constant is never set (AttributeError),
+            # and the (M, N) difference arrays below do not match the (N, M) plan
+            # unless N == M.
+            β_scaled =self.cost_kwargs['beta'] * self.Y_t[:, 1].view(1, -1) / self.f_constant + 1
             grad = torch.zeros_like(self.Y_t) if which == "source" else torch.zeros_like(self.X_s)
 
             grad[:, 0] = (self._pi(tensorised=False) * β_scaled * (self.Y_t[:, 0].view(-1, 1) - self.X_s[:, 0].view(1, -1))).sum(dim=(0 if which == "source" else 1))
@@ -408,6 +533,29 @@ class UnbalancedOT(UnbalancedSinkhorn):
 
 
     def barycentre(self, p, sum_over="source"):
+        """
+        Barycentric projection of a quantity p through the plan.
+
+        - sum_over="source": p lives on the source points; returns, for each
+          target point j, sum_i pi_ij p_i / sum_i pi_ij.
+        - sum_over="target": p lives on the target points; returns, for each
+          source point i, sum_j pi_ij p_j / sum_j pi_ij.
+
+        With p = the points themselves this is "where the mass came from / goes
+        to, on average" (used by `barycentre_map_of_points`).
+
+        Parameters
+        ----------
+        p : torch.Tensor
+            (N, d) or (M, d) values, matching the side summed over.
+        sum_over : {"source", "target"}, optional
+            By default "source".
+
+        Returns
+        -------
+        torch.Tensor
+            (M, d) for "source", (N, d) for "target".
+        """
 
         # To Do: Add force_type parameter here
 
@@ -438,11 +586,18 @@ class UnbalancedOT(UnbalancedSinkhorn):
         torch.Tensor
             pi (p) barycentre approximation
 
+            (Normalised: divided by the marginal, see `barycentre`.) Always flat:
+            (M, D) for "source", (N, D) for "target", even for grid inputs.
+
         Raises
         ------
         ValueError
-            _description_
+            If sum_over is not "source" or "target".
         """
+        # The KeOps formula always sums over its j side, so the source/target
+        # roles are swapped to choose which side is summed over:
+        #   "target": i = source (output per source point), j = target
+        #   "source": i = target (output per target point), j = source
         D = p.shape[-1]
         if sum_over == "target":
             return self.pykeops_formulas.barycentres(
@@ -490,11 +645,16 @@ class UnbalancedOT(UnbalancedSinkhorn):
         torch.Tensor
             pi (p) barycentre approximation
 
+            NOT normalised: sum over the chosen side of pi_ij p, without dividing
+            by the marginal (unlike `_barycentres_pykeops`). Flat (M, D) for
+            "source", (N, D) for "target".
+
         Raises
         ------
         ValueError
-            _description_
+            If sum_over is not "source" or "target".
         """
+        # Same argument layout as _barycentres_pykeops; only the formula differs.
         D = p.shape[-1]
         if sum_over == "target":
             return self.pykeops_formulas.pi_transport(
@@ -530,7 +690,25 @@ class UnbalancedOT(UnbalancedSinkhorn):
 
         We want this to take grided points and return a grid
         Or take flat and return flat
+
+        Torch version of `barycentre`, using the full plan from `_pi`.
+
+        Parameters
+        ----------
+        p : torch.Tensor
+            Flat inputs: (N, d) / (M, d). Grid inputs: an (n1, n2) / (m1, m2)
+            SCALAR field only.
+        sum_over : {"source", "target"}
+
+        Returns
+        -------
+        torch.Tensor
+            Flat: (M, d) / (N, d). Grid: (m1, m2) / (n1, n2).
         """
+        # BUG(stage 4): on grids, a vector field p of shape (n1, n2, d) fails with
+        # a broadcasting error (checked), and so do the flat points that
+        # barycentre_map_of_points passes in. The grid branch also builds the
+        # full 4D plan (see the module memory NOTE).
 
         if len(p.shape) == 1:
             d = 1
@@ -566,6 +744,14 @@ class UnbalancedOT(UnbalancedSinkhorn):
 
     # ------- Overwrite convergence data ---------
     def _update_convergence_dict(self, f_update, g_update):
+        """
+        Like the parent version, but also record the total primal and dual
+        energies at every convergence check.
+
+        NOTE: computing both energies is far more expensive than a Sinkhorn
+        iteration (on the dense and grid paths it rebuilds the full plan several
+        times), and by default there is a check on every iteration.
+        """
         self.convergence_dict["f_update"].append(f_update.item())
         self.convergence_dict["g_update"].append(g_update.item())
         self.convergence_dict["primal_energy"].append(sum(self.primal_cost()).item())
