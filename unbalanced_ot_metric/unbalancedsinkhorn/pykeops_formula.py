@@ -175,32 +175,25 @@ class PyKeOpsFormulas:
             G, F, X, Y, E, S, M, C.type_as(G), P
         ) / self.marginal_i_keops(G, F, X, Y, E, S, M, C.type_as(G))
 
-            # --------------------------------------------------------------------------------------------------------------------------------
-        # Marginals of pi
+    def pi_transport(self, G, F, X, Y, E, S, M, P, C=torch.tensor([1.0])):
+        """
+        barycentre assuming G and P match in the first dimension, P can have a batch dimension otherwise
+        """
+        d = P.shape[-1]
+        ott_barycentres_top = generic_sum(
+            f"(Exp((F + G - IntInv(2)*C*{self.cost_string})/E)*S*M*P )",
+            "f = Vi(" + str(int(d)) + ")",  # Geo: 1 scalar per line
+            "G = Vj(1)",  # Uni: 1 scalar per line
+            "F = Vi(1)",  # Geo: 1 scalar per line
+            "X = Vi(" + str(self.space_dim) + ")",  # Geo: 2-dim
+            "Y = Vj(" + str(self.space_dim) + ")",  # Uni: 1 scalar per line
+            "E = Pm(1)",  # parameter: 1 scalar per line
+            "S = Vi(1)",  # Geo
+            "M = Vj(1)",
+            "C = Pm(1)",
+            "P = Vj(" + str(int(d)) + ")",
+        )
 
-    # def barycentres(F, X, Y, E, S, P, C=torch.tensor([1.0])):
-    #     '''
-    #     Calculates barycentric mapping (Gibbs esque) with output in opposite potential to input F
-    #     i.e.
-    #     bary_i inputs (F_i, X_i, Y_j, E, S_i, P_i)
-    #     bary_j inputs (G_j, Y_j, X_i, E, S_j, P_j)
-    #     '''
-
-    #     d = P.shape[-1]
-
-    #     barycentres_top = generic_sum("(Exp((F + G - IntInv(2)*C*SqDist(X, Y))/E)*S*M*P )",
-    #                           'f = Vi('+str(int(d))+')',   # Geo: 1 scalar per line
-    #                           'G = Vj(1)',   # Uni: 1 scalar per line
-    #                           'F = Vi(1)',   # Geo: 1 scalar per line
-    #                           'X = Vi(2)',   # Geo: 2-dim
-    #                           'Y = Vj(2)',   # Uni: 1 scalar per line
-    #                           'E = Pm(1)',   # parameter: 1 scalar per line
-    #                           'S = Vi(1)',   # Geo
-    #                           'M = Vj(1)',
-    #                           'C = Pm(1)',
-    #                           'P = Vj('+str(int(d))+')'
-    #                           )
-
-    #     return barycentres_top(F, X, Y, E, S, P, C.type_as(F)) / barycentres_bottom(F, X, Y, E, S, C.type_as(F))
-
-    # could have it having varying dimensions?
+        return ott_barycentres_top(
+            G, F, X, Y, E, S, M, C.type_as(G), P
+        )

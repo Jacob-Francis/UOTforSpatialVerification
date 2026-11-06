@@ -470,6 +470,58 @@ class UnbalancedOT(UnbalancedSinkhorn):
             )  # .view(*self.g.shape, D)
         else:
             raise ValueError("sum_over = 'target' or 'source' required inputs")
+    
+    def _pi_transport_pykeops(self, p, sum_over="source"):
+        """Partial Barycentre mapping, the gibbs kernal term NOT full map
+         - barycentre assuming G and P match in the first dimension
+
+        We want this to take grided points and return a grid
+        Or take flat and return flat
+
+        Parameters
+        ----------
+        p : torch.Tensor (N, M, D) / (N,D)
+            quantity to pass through approximate barycentre mapping
+        sum_over : str, optional
+            ["source", "target"], by default "source"
+
+        Returns
+        -------
+        torch.Tensor
+            pi (p) barycentre approximation
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
+        D = p.shape[-1]
+        if sum_over == "target":
+            return self.pykeops_formulas.pi_transport(
+                self.g.view(-1, 1),
+                self.f.view(-1, 1),
+                self._process_tuple_points_for_pykeops(self.X_s),
+                self._process_tuple_points_for_pykeops(self.Y_t),
+                self.epsilon.view(-1, 1),
+                self.α_s.view(-1, 1),
+                self.β_t.view(-1, 1),
+                p.view(-1, D),  # /should this ever be view(-1, 2?)
+                self.cost_const,
+            )  # .view(*self.f.shape, D)
+        elif sum_over == "source":
+            return self.pykeops_formulas.pi_transport(
+                self.f.view(-1, 1),
+                self.g.view(-1, 1),
+                self._process_tuple_points_for_pykeops(self.Y_t),
+                self._process_tuple_points_for_pykeops(self.X_s),
+                self.epsilon.view(-1, 1),
+                self.β_t.view(-1, 1),
+                self.α_s.view(-1, 1),
+                p.view(-1, D),  # /should this ever be view(-1, 2?)
+                self.cost_const,
+            )  # .view(*self.g.shape, D)
+        else:
+            raise ValueError("sum_over = 'target' or 'source' required inputs")
 
     def _barycentres_torch(self, p, sum_over="source"):
         """
